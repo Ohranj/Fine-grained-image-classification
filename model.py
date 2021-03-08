@@ -1,5 +1,9 @@
-import matplotlib.pyplot as plt
+%load_ext tensorboard
+
+import numpy as np
 import tensorflow as tf
+import pathlib
+import datetime
 
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -12,9 +16,11 @@ dataset_url = "https://storage.googleapis.com/download.tensorflow.org/example_im
 data_dir = tf.keras.utils.get_file('flower_photos', origin=dataset_url, untar=True)
 data_dir = pathlib.Path(data_dir)
 
+num_classes = 5
 batch_size = 32
-img_height = 180
-img_width = 180
+img_height = 96
+img_width = 96
+opt = keras.optimizers.Adam(learning_rate=0.0001)
 
 train_ds = tf.keras.preprocessing.image_dataset_from_directory(
   data_dir,
@@ -22,7 +28,8 @@ train_ds = tf.keras.preprocessing.image_dataset_from_directory(
   subset="training",
   seed=123,
   image_size=(img_height, img_width),
-  batch_size=batch_size)
+  batch_size=batch_size
+)
 
 val_ds = tf.keras.preprocessing.image_dataset_from_directory(
   data_dir,
@@ -30,39 +37,51 @@ val_ds = tf.keras.preprocessing.image_dataset_from_directory(
   subset="validation",
   seed=123,
   image_size=(img_height, img_width),
-  batch_size=batch_size)
+  batch_size=batch_size
+)
 
-num_classes = 5
-
-data_preprocessing = keras.Sequential([layers.experimental.preprocessing.RandomFlip("horizontal", input_shape=(img_height, img_width, 3)), layers.experimental.preprocessing.RandomRotation(0.1), layers.experimental.preprocessing.RandomZoom(0.1), layers.experimental.preprocessing.Rescaling(1./255, input_shape=(img_height, img_width, 3))])
+data_preprocessing = keras.Sequential([
+  layers.experimental.preprocessing.RandomFlip("horizontal_and_vertical", input_shape=(img_height, img_width, 3)),
+  layers.experimental.preprocessing.RandomRotation(0.1),
+  layers.experimental.preprocessing.RandomTranslation(0.1, 0.1),
+  layers.experimental.preprocessing.RandomZoom(0.1),
+])
 
 model = Sequential([
   data_preprocessing,
+  layers.experimental.preprocessing.Rescaling(1./255, input_shape=(img_height, img_width, 3)),
   Conv2D(16, 3, padding='same', activation='relu'),
   MaxPooling2D(),
-  Dropout(0.2),
   Conv2D(32, 3, padding='same', activation='relu'),
   MaxPooling2D(),
-  Dropout(0.2),
   Conv2D(64, 3, padding='same', activation='relu'),
   MaxPooling2D(),
-  Dropout(0.5),
+  Dropout(0.2),
   Flatten(),
   Dense(128, activation='relu'),
   Dense(num_classes)
 ])
 
+model.compile(optimizer=opt,
+  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+  metrics=['accuracy']
+)
 
-model.compile(optimizer='RMSProp',
-              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-              metrics=['accuracy'])
+log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "32x32-1"
 
-early_stopping = EarlyStopping(monitor='val_accuracy', patience=5, min_delta=0.01, mode='max')
+callbacks = [
+    EarlyStopping(monitor='accuracy', patience=10, min_delta=0.001, mode='max'),
+    keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1) 
+]
 
-epochs=100
-history = model.fit(
+
+epochs=25
+hist = model.fit(
   train_ds,
   validation_data=val_ds,
+  batch_size=batch_size,
   epochs=epochs,
-  callbacks=[early_stopping]
+  callbacks=callbacks
 )
+
+%tensorboard --logdir logs
