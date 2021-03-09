@@ -40,26 +40,20 @@ val_ds = tf.keras.preprocessing.image_dataset_from_directory(
   batch_size=batch_size
 )
 
-data_preprocessing = keras.Sequential([
-  layers.experimental.preprocessing.RandomFlip("horizontal_and_vertical", input_shape=(img_height, img_width, 3)),
-  layers.experimental.preprocessing.RandomRotation(0.1),
-  layers.experimental.preprocessing.RandomTranslation(0.1, 0.1),
-  layers.experimental.preprocessing.RandomZoom(0.1),
-])
+
 
 model = Sequential([
-  data_preprocessing,
+  layers.experimental.preprocessing.RandomFlip("horizontal_and_vertical", input_shape=(img_height, img_width, 3)),
   layers.experimental.preprocessing.Rescaling(1./255, input_shape=(img_height, img_width, 3)),
   Conv2D(16, 3, padding='same', activation='relu'),
-  MaxPooling2D(),
+  MaxPooling2D(2),
   Conv2D(32, 3, padding='same', activation='relu'),
-  MaxPooling2D(),
+  MaxPooling2D(2),
   Conv2D(64, 3, padding='same', activation='relu'),
-  MaxPooling2D(),
-  Dropout(0.2),
+  MaxPooling2D(2),
   Flatten(),
   Dense(128, activation='relu'),
-  Dense(num_classes)
+  Dense(num_classes, activation="softmax")
 ])
 
 model.compile(optimizer=opt,
@@ -75,7 +69,7 @@ callbacks = [
 ]
 
 
-epochs=25
+epochs=100
 hist = model.fit(
   train_ds,
   validation_data=val_ds,
